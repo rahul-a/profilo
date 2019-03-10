@@ -177,12 +177,34 @@ class Block(tt.Block):
             points=len(self.points),
         ))
 
+class Interaction(tt.Interaction):
+    def __init__(self, unit, begin=None, end=None):
+        super(Interaction, self).__init__(new_id(), begin, end, properties=Properties())
+        self.unit = unit
+
+    def add_name(self, name):
+        self.properties.coreProps["name"] = name
+
+    def add_start(self, timestamp):
+        self.begin = timestamp
+
+    def add_end(self, timestamp):
+        self.end = timestamp
+
+    def __repr__(self):
+        return ("<Interaction ({id}): \"{name}\"; {begin} to {end})".format(
+            id=self.id,
+            name=self.properties.coreProps.get('name', "<None>"),
+            begin=self.begin,
+            end=self.end))
+
 class ExecutionUnit(tt.ExecutionUnit):
     def __init__(self, trace):
-        super(ExecutionUnit, self).__init__(new_id(), [], Properties())
+        super(ExecutionUnit, self).__init__(new_id(), [], [], Properties())
         self.trace = trace
         self.tree = None
         self.stack = []
+        self.interaction_stack = []
 
     def add_block(self, beginTimestamp=None, endTimestamp=None):
         block = Block(self.trace, self)
@@ -212,6 +234,30 @@ class ExecutionUnit(tt.ExecutionUnit):
 
         return block
 
+    def add_interaction(self, beginTimestamp=None, endTimestamp=None):
+        interaction = Interaction(self)
+        self.trace.interactions[interaction.id] = interaction
+        self.interactions.append(interaction.id)
+        if beginTimestamp:
+            interaction.add_start(beginTimestamp)
+        if endTimestamp:
+            interaction.add_end(endTimestamp)
+        return interaction
+
+    def push_interaction(self, timestamp):
+        interaction = self.add_interaction(beginTimestamp=timestamp)
+        self.interaction_stack.append(interaction)
+        return interaction
+
+    def pop_interaction(self, timestamp):
+        if len(self.interaction_stack) == 0 or self.interaction_stack[-1].end != None:
+            interaction = self.add_interaction(endTimestamp=timestamp)
+            self.interaction_stack.append(interaction)
+        else:
+            interaction = self.interaction_stack.pop()
+            interaction.add_end(timestamp)
+        return interaction
+
     def add_point(self, timestamp):
         """Finds the deepest block containing this timestamp and creates a
         point within it. If no such block exists, creates a 0-length block to
@@ -231,6 +277,10 @@ class ExecutionUnit(tt.ExecutionUnit):
     @property
     def all_blocks(self):
         return [self.trace.blocks[idx] for idx in self.blocks]
+
+    @property
+    def all_interactions(self):
+        return [self.trace.interactions[idx] for idx in self.interactions]
 
     def normalize_blocks(self):
         """Aligns blocks without a beginning or an end to the ends of the trace.
@@ -266,10 +316,11 @@ class ExecutionUnit(tt.ExecutionUnit):
             self.__assign_parent_child_blocks(child)
 
     def __repr__(self):
-        return ("<ExecutionUnit ({id}): \"{name}\"; {blocks} blocks>".format(
+        return ("<ExecutionUnit ({id}): \"{name}\"; {blocks} blocks; {interactions} interactions>".format(
             id=self.id,
             name=self.properties.coreProps.get('name', "<None>"),
             blocks=len(self.blocks),
+            interactions=len(self.interactions)
         ))
 
 class Trace(tt.Trace):
@@ -281,6 +332,7 @@ class Trace(tt.Trace):
             points={},
             version=0,
             edges=[],
+            interactions={},
             properties=Properties(),
         )
         self.id = id if id else new_id()

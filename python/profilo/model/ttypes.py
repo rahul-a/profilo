@@ -183,6 +183,8 @@ class ExecutionUnit(object):
 
     __init__ = None
 
+class Interaction(object):
+    __init__ = None
 
 def StackTrace__init__(
     self,
@@ -342,6 +344,7 @@ def Trace__init__(
     points=None,
     version=None,
     edges=None,
+    interactions=None,
     properties=None,
 ):
     self.id = id
@@ -350,6 +353,7 @@ def Trace__init__(
     self.points = points
     self.version = version
     self.edges = edges
+    self.interactions = interactions
     self.properties = properties
 
 
@@ -360,11 +364,27 @@ def ExecutionUnit__init__(
     self,
     id=None,
     blocks=None,
+    interactions=None,
     properties=None,
 ):
     self.id = id
     self.blocks = blocks
+    self.interactions = interactions
     self.properties = properties
 
 
 ExecutionUnit.__init__ = ExecutionUnit__init__
+
+def Interaction__init__(
+    self,
+    id=None,
+    begin=None,
+    end=None,
+    properties=None
+):
+    self.id = id
+    self.begin = begin
+    self.end = end
+    self.properties = properties
+
+Interaction.__init__ = Interaction__init__

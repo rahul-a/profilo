@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-
-from ..model.build import Trace, StackTrace
+from ..model.build import Trace, StackTrace, Interaction
 from .trace_file import StandardEntry, BytesEntry
 from .constants import COUNTER_NAMES
 
@@ -61,6 +60,11 @@ def block_compare(x, y):
         assert xs is not None and ys is not None
         return entry_compare(xs, ys)
 
+class InteractionEntries(object):
+    def __init__(self, begin=None, end=None):
+        self.begin = begin
+        self.end = end
+
 class BlockEntries(object):
     def __init__(self, begin=None, end=None):
         self.begin = begin
@@ -72,6 +76,7 @@ class TraceFileInterpreter(object):
         self.trace_file = trace_file
         self.units = {}
         self.block_entries = {}
+        self.interaction_entries = {}
         self.symbols = symbols
 
     def __calculate_parents_children(self):
@@ -130,6 +135,9 @@ class TraceFileInterpreter(object):
         BLOCK_START_ENTRIES = ["MARK_PUSH", "IO_START"]
         BLOCK_END_ENTRIES = ["MARK_POP", "IO_END"]
 
+        INTERACTION_START_ENTRIES = ["LIFECYCLE_VIEW_START"]
+        INTERACTION_END_ENTRIES = ["LIFECYCLE_VIEW_END"]
+
         THREAD_METADATA_ENTRIES = ["TRACE_THREAD_NAME", "TRACE_THREAD_PRI"]
 
         for tid, items in thread_items.items():
@@ -143,6 +151,7 @@ class TraceFileInterpreter(object):
             # First, build blocks.
             for entry in entries:
                 block = None
+                interaction = None
                 if entry.type in BLOCK_START_ENTRIES:
                     block = unit.push_block(entry.timestamp)
                     self.block_entries.setdefault(
@@ -156,12 +165,25 @@ class TraceFileInterpreter(object):
                     stacks.setdefault(entry.timestamp, []).append(entry.arg3)
                 elif entry.type in THREAD_METADATA_ENTRIES:
                     self.process_thread_metadata(entry)
+                elif entry.type in INTERACTION_START_ENTRIES:
+                    interaction = unit.push_interaction(entry.timestamp)
+                    self.interaction_entries.setdefault(interaction, InteractionEntries()).begin = entry
+                elif entry.type in INTERACTION_END_ENTRIES:
+                    interaction = unit.pop_interaction(entry.timestamp)
+                    self.interaction_entries.setdefault(interaction, InteractionEntries()).end = entry
 
                 if block:
                     block_entries = self.block_entries[block]
                     self.assign_name(block, entries=[
                         block_entries.begin,
                         block_entries.end,
+                    ])
+
+                if interaction:
+                    interaction_entries = self.interaction_entries[interaction]
+                    self.assign_name(interaction, entries=[
+                        interaction_entries.begin,
+                        interaction_entries.end
                     ])
 
             unit.normalize_blocks()
