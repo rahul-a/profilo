@@ -182,7 +182,7 @@ class TraceFileInterpreter(object):
                 if entry.type == "COUNTER":
                     item = unit.add_point(entry.timestamp)
                     item.properties.add_counter(
-                        name=COUNTER_NAMES[entry.arg1],
+                        name=COUNTER_NAMES.get(entry.arg1, '<Unknown>'),
                         value=entry.arg3,
                     )
 
